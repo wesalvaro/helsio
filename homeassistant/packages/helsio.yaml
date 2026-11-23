@@ -1,0 +1,95 @@
+# Sharp Healsio AX-XA10 – Home Assistant package
+#
+# Requires the HACS "ECHONET Lite" integration (scottyphillips/echonetlite_homeassistant)
+# with the oven added by IP, title "Helsio". That integration provides:
+#   sensor.helsio_heating_status                      initial|heating|suspended|cycle-complete|setting|
+#                                                     preheating|preheat-maintenance|manual-stop
+#   sensor.helsio_door_open_close_status              open|closed
+#   sensor.helsio_remaining_heating_time_setting      HH:MM:SS
+#   sensor.helsio_heating_setting                     start|suspend|stop
+#   sensor.helsio_automatic_heating_setting           automatic|manual
+#   sensor.helsio_measured_cumulative_power_consumption   kWh (total_increasing, Energy-dashboard ready)
+#   binary_sensor.helsio_operation_status / binary_sensor.helsio_fault_status
+#
+# Install: copy to /config/packages/helsio.yaml and make sure configuration.yaml has
+#   homeassistant:
+#     packages: !include_dir_named packages
+
+template:
+  - sensor:
+      - name: "Helsio state"
+        unique_id: helsio_state
+        icon: mdi:toaster-oven
+        state: >
+          {% set m = {
+            'initial': 'idle',
+            'heating': 'cooking',
+            'suspended': 'paused',
+            'cycle-complete': 'done',
+            'setting': 'setting',
+            'preheating': 'preheating',
+            'preheat-maintenance': 'preheated',
+            'manual-stop': 'waiting',
+          } %}
+          {{ m.get(states('sensor.helsio_heating_status'), 'unknown') }}
+
+      - name: "Helsio remaining time"
+        unique_id: helsio_remaining_time
+        icon: mdi:timer-sand
+        unit_of_measurement: "min"
+        state_class: measurement
+        state: >
+          {% set t = states('sensor.helsio_remaining_heating_time_setting').split(':') %}
+          {% if t | length == 3 and t[0] | is_number %}
+            {{ ((t[0] | int) * 60 + (t[1] | int) + (t[2] | int) / 60) | round(1) }}
+          {% else %}
+            0
+          {% endif %}
+
+  - binary_sensor:
+      - name: "Helsio door"
+        unique_id: helsio_door
+        device_class: door
+        state: "{{ is_state('sensor.helsio_door_open_close_status', 'open') }}"
+
+      - name: "Helsio cooking"
+        unique_id: helsio_cooking
+        device_class: running
+        icon: mdi:stove
+        state: >
+          {{ states('sensor.helsio_state') in ['cooking', 'preheating', 'preheated', 'paused', 'waiting'] }}
+
+# ---------------------------------------------------------------------------
+# Notifications – uncomment and replace NOTIFY_TARGET (e.g. notify.mobile_app_pixel_11).
+# ---------------------------------------------------------------------------
+# automation:
+#   - alias: "Helsio: cooking finished"
+#     id: helsio_cooking_finished
+#     mode: single
+#     triggers:
+#       - trigger: state
+#         entity_id: sensor.helsio_state
+#         to: "done"
+#     actions:
+#       - action: NOTIFY_TARGET
+#         data:
+#           title: "Helsio"
+#           message: "調理が終了しました 🍳"
+#
+#   - alias: "Helsio: forgot to take it out"
+#     id: helsio_forgot_food
+#     mode: single
+#     triggers:
+#       - trigger: state
+#         entity_id: sensor.helsio_state
+#         to: "done"
+#         for: "00:05:00"
+#     conditions:
+#       - condition: state
+#         entity_id: binary_sensor.helsio_door
+#         state: "off"
+#     actions:
+#       - action: NOTIFY_TARGET
+#         data:
+#           title: "Helsio"
+#           message: "Food is still in the oven (5 min)."
