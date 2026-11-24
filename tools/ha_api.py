@@ -7,10 +7,10 @@ Token is read from $HA_TOKEN or ~/.config/helsio/ha_token; URL from $HA_URL
 Subcommands:
   states [REGEX]                 list entity states (optionally filtered)
   watch [REGEX] [SECONDS]        print state changes of matching entities (1 s polling)
-  entries [DOMAIN]               list config entries
+  entries [DOMAIN...]            list config entries
   entry-disable ENTRY_ID on|off  disable / re-enable a config entry
-  hacs-list REGEX                search HACS integration repositories
-  hacs-download REPO_ID          download a HACS repository
+  hacs-list REGEX                search Marketplace/HACS integration repositories
+  hacs-download REPO_ID          download a Marketplace/HACS repository
   restart                        restart HA and wait until it is back
   flow HANDLER key=value ...     start a config flow and submit one user step
   ws TYPE [JSON]                 raw websocket command
@@ -158,9 +158,9 @@ def cmd_states(pattern: str | None) -> None:
         print(f"{s['entity_id']:<60} {s['state']}")
 
 
-def cmd_entries(domain: str | None) -> None:
+def cmd_entries(domains: list[str]) -> None:
     for e in rest("GET", "/api/config/config_entries/entry"):
-        if domain and e["domain"] != domain:
+        if domains and e["domain"] not in domains:
             continue
         print(f"{e['entry_id']}  {e['domain']:<18} {e['state']:<12} disabled_by={e.get('disabled_by')}  {e['title']}")
 
@@ -170,15 +170,25 @@ def cmd_entry_disable(entry_id: str, state: str) -> None:
     print(WS().call("config_entries/disable", entry_id=entry_id, disabled_by=disabled_by))
 
 
+def store_domain() -> str:
+    """'marketplace' (HA >= 2026.11, HACS merged into core) or 'hacs' (older)."""
+    domains = {e["domain"] for e in rest("GET", "/api/config/config_entries/entry")}
+    if "marketplace" in domains:
+        return "marketplace"
+    if "hacs" in domains:
+        return "hacs"
+    raise SystemExit("Neither Marketplace nor HACS is set up in this Home Assistant.")
+
+
 def cmd_hacs_list(pattern: str) -> None:
     rx = re.compile(pattern, re.I)
-    for r in WS().call("hacs/repositories/list", categories=["integration"]):
+    for r in WS().call(f"{store_domain()}/repositories/list", categories=["integration"]):
         if rx.search(r.get("full_name", "")):
             print(json.dumps({k: r.get(k) for k in ("id", "full_name", "installed", "installed_version", "available_version")}))
 
 
 def cmd_hacs_download(repo_id: str) -> None:
-    print(WS().call("hacs/repository/download", repository=repo_id))
+    print(WS().call(f"{store_domain()}/repository/download", repository=repo_id))
 
 
 def wait_up(timeout: float = 240) -> None:
@@ -241,7 +251,7 @@ def main(argv: list[str]) -> None:
     elif cmd == "watch":
         cmd_watch(args[0] if args else "helsio", float(args[1]) if len(args) > 1 else 300)
     elif cmd == "entries":
-        cmd_entries(args[0] if args else None)
+        cmd_entries(args)
     elif cmd == "entry-disable":
         cmd_entry_disable(args[0], args[1])
     elif cmd == "hacs-list":

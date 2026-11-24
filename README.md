@@ -19,7 +19,7 @@ See [docs/echonet_0x03B8.md](docs/echonet_0x03B8.md) for the property reference 
 
 ## Home Assistant setup
 
-1. **HACS → ECHONET Lite** (`scottyphillips/echonetlite_homeassistant` 4.0.9, `pychonet` 2.8.2), device added by IP, title `Helsio` (`just deploy-integration`). Provides:
+1. **Marketplace (HA ≥ 2026.11; HACS on older versions) → ECHONET Lite** (`scottyphillips/echonetlite_homeassistant` 4.0.9, `pychonet` 2.8.2), device added by IP, title `Helsio` (`just deploy-integration`). Provides:
 
    | Entity | Values |
    |---|---|
@@ -50,19 +50,19 @@ Everything goes through the [Justfile](Justfile); run `just` for the list.
 | Recipe | What it does |
 |---|---|
 | `just deploy` | full deployment: integration + helpers + verify |
-| `just deploy-integration` | HACS (temporarily enabled) → download ECHONET Lite → restart HA if needed → add the oven (`HELSIO_HOST` or auto‑discovered) → restore HACS state |
+| `just deploy-integration` | Marketplace/HACS (temporarily enabled) → download ECHONET Lite → restart HA if needed → add the oven (`HELSIO_HOST` or auto‑discovered) → restore HACS state |
 | `just deploy-helpers` / `just redeploy-helpers` | create (or delete + recreate) the template helpers from `homeassistant/packages/helsio.yaml` |
 | `just verify` | render every template server‑side and list the Helsio entities |
 | `just status` / `just watch [SECONDS]` | current entity states / live change log |
 | `just probe` / `just inspect [HOST]` | ECHONET Lite discovery / full property dump of the oven |
 | `just monitor [OUT]` | log oven state to CSV during a cook (for decoding Sharp's vendor props) |
-| `just hacs on\|off` | toggle HACS |
+| `just store on\|off` | enable/disable the Marketplace (or HACS) entry |
 
 Recipes are idempotent. Setup:
 
 1. Create a long‑lived access token in Home Assistant (profile → Security) and save it to `~/.config/helsio/ha_token`.
 2. Optionally `cp .env.example .env` to pin `HELSIO_HOST` / `HA_URL` (defaults: multicast discovery / `http://homeassistant.local:8123`).
-3. HACS must be installed (it may be disabled; recipes enable it temporarily and restore its state).
+3. On HA ≥ 2026.11 the built‑in Marketplace is used; on older versions HACS must be installed. Either may be disabled – recipes enable it temporarily and restore its state.
 
 The only Python dependency is PyYAML in a local `.venv` (`just venv`).
 

@@ -18,7 +18,7 @@ venv:
 deploy: venv
     {{py}} tools/deploy.py all
 
-# HACS (temporarily enabled) -> download ECHONET Lite -> restart HA -> add the oven ($HELSIO_HOST or auto-discovered)
+# Marketplace/HACS (temporarily enabled) -> download ECHONET Lite -> restart HA -> add the oven ($HELSIO_HOST or auto-discovered)
 deploy-integration: venv
     {{py}} tools/deploy.py integration
 
@@ -55,6 +55,6 @@ inspect HOST="":
 monitor OUT="cook.csv":
     python3 tools/helsio_monitor.py --out {{OUT}}
 
-# Enable or disable HACS ("on" / "off")
-hacs STATE:
-    python3 tools/ha_api.py entry-disable "$(python3 tools/ha_api.py entries hacs | awk '{print $1}')" {{STATE}}
+# Enable or disable the Marketplace (HA >= 2026.11) / HACS entry ("on" / "off")
+store STATE:
+    python3 tools/ha_api.py entry-disable "$(python3 tools/ha_api.py entries marketplace hacs | awk '{print $1}')" {{STATE}}

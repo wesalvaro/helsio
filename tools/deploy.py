@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Deploy the Healsio integration to Home Assistant (idempotent).
 
-  deploy.py integration   HACS: enable -> download ECHONET Lite -> restart HA -> add device -> restore HACS state
+  deploy.py integration   Marketplace/HACS: enable -> download ECHONET Lite -> restart HA -> add device -> restore state
   deploy.py helpers       create the template helpers defined in homeassistant/packages/helsio.yaml
   deploy.py helpers-rm    delete those helpers (so `helpers` re-creates them after a YAML change)
   deploy.py verify        render every template server-side and list the resulting entities
@@ -39,41 +39,39 @@ def log(msg: str) -> None:
 
 # ------------------------------------------------------------------ integration
 def deploy_integration() -> None:
-    hacs = entries("hacs")
-    if not hacs:
-        raise SystemExit("HACS is not installed in this Home Assistant; install it first.")
-    hacs = hacs[0]
+    store = ha_api.store_domain()  # "marketplace" (HA >= 2026.11) or "hacs"
+    hacs = entries(store)[0]
     was_disabled = hacs.get("disabled_by") is not None
     ws = ha_api.WS()
 
     if was_disabled:
-        log("enabling HACS (temporarily)")
+        log(f"enabling {store} (temporarily)")
         ws.call("config_entries/disable", entry_id=hacs["entry_id"], disabled_by=None)
         for _ in range(30):
             time.sleep(2)
             try:
-                ha_api.WS().call("hacs/info")
+                ha_api.WS().call(f"{store}/info")
                 break
             except Exception:
                 pass
         else:
-            raise SystemExit("HACS did not come up")
+            raise SystemExit(f"{store} did not come up")
 
     try:
-        repos = ha_api.WS().call("hacs/repositories/list", categories=["integration"])
+        repos = ha_api.WS().call(f"{store}/repositories/list", categories=["integration"])
         repo = next(r for r in repos if r["full_name"] == HACS_REPO)
         if repo.get("installed"):
             log(f"{HACS_REPO} already installed ({repo.get('installed_version')})")
             restarted = False
         else:
             log(f"downloading {HACS_REPO} {repo.get('available_version')}")
-            ha_api.WS().call("hacs/repository/download", repository=repo["id"])
+            ha_api.WS().call(f"{store}/repository/download", repository=repo["id"])
             log("restarting Home Assistant")
             ha_api.cmd_restart()
             restarted = True
     finally:
         if was_disabled:
-            log("disabling HACS again")
+            log(f"disabling {store} again")
             ha_api.WS().call("config_entries/disable", entry_id=hacs["entry_id"], disabled_by="user")
 
     if entries("echonetlite"):
